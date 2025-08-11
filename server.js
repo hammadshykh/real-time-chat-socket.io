@@ -14,9 +14,8 @@ app.prepare().then(() => {
   handle(req, res);
  });
 
- const io = new Server(httpServer, {
-  cors: { origin: "https://real-time-chat-socket-io.vercel.app" }, // adjust as needed
- });
+ // No CORS needed for same-origin
+ const io = new Server(httpServer);
 
  io.on("connection", (socket) => {
   console.log("A user connected:", socket.id);
@@ -31,6 +30,6 @@ app.prepare().then(() => {
  });
 
  httpServer.listen(PORT, () => {
-  console.log(`> Ready on ${process.env.NEXT_PUBLIC_SITE_URL}:${PORT}`);
+  console.log(`> Ready on http://localhost:${PORT}`);
  });
 });

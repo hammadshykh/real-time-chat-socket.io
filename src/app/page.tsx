@@ -1,10 +1,6 @@
 "use client";
+import { socket } from "@/socket";
 import React, { useEffect, useRef, useState } from "react";
-import io from "socket.io-client";
-
-const socket = io(
- process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000"
-);
 
 type ChatMessage = {
  text: string;
@@ -14,20 +10,26 @@ type ChatMessage = {
 export default function ChatPage() {
  const [message, setMessage] = useState("");
  const [chat, setChat] = useState<ChatMessage[]>([]);
- const [isConnected, setIsConnected] = useState(socket.connected);
+ const [isConnected, setIsConnected] = useState(false);
  const [error, setError] = useState("");
  const messagesEndRef = useRef<HTMLDivElement>(null);
 
  useEffect(() => {
+  // Connect when component mounts
+  socket.connect();
+
   socket.on("connect", () => setIsConnected(true));
   socket.on("disconnect", () => setIsConnected(false));
-  socket.on("receiveMessage", (msg) => {
+  socket.on("receiveMessage", (msg: string) => {
    setChat((prev) => [...prev, { text: msg, type: "received" }]);
   });
+
   return () => {
+   // Cleanup listeners & disconnect
    socket.off("connect");
    socket.off("disconnect");
    socket.off("receiveMessage");
+   socket.disconnect();
   };
  }, []);
 
@@ -38,10 +40,12 @@ export default function ChatPage() {
  const sendMessage = (e: React.FormEvent) => {
   e.preventDefault();
   if (!message.trim()) return;
+
   if (!isConnected) {
    setError("Internet disconnected. Message not sent.");
    return;
   }
+
   setChat((prev) => [...prev, { text: message, type: "sent" }]);
   socket.emit("sendMessage", message);
   setMessage("");
@@ -56,9 +60,11 @@ export default function ChatPage() {
     </div>
    )}
    {error && <div className="mb-2 text-red-500">{error}</div>}
+
    <h2 className="text-2xl font-bold mb-6 text-center text-blue-600">
     Socket.IO Chat
    </h2>
+
    <div className="h-96 overflow-y-auto mb-6 bg-gray-50 rounded-lg p-4 border border-gray-100 flex flex-col">
     {chat.length === 0 ? (
      <div className="text-gray-400 text-center mt-32">No messages yet.</div>
@@ -85,6 +91,7 @@ export default function ChatPage() {
     )}
     <div ref={messagesEndRef} />
    </div>
+
    <form onSubmit={sendMessage} className="flex gap-4">
     <input
      type="text"

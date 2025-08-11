@@ -15,7 +15,7 @@ app.prepare().then(() => {
  });
 
  const io = new Server(httpServer, {
-  cors: { origin: process.env.NEXT_PUBLIC_SITE_URL }, // adjust as needed
+  cors: { origin: "https://real-time-chat-socket-io.vercel.app" }, // adjust as needed
  });
 
  io.on("connection", (socket) => {

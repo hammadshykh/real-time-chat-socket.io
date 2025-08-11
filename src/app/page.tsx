@@ -1,72 +1,102 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
 
-const socket = io("http://localhost:4000"); // Update if your backend runs elsewhere
+const socket = io(
+ process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000"
+);
+
+type ChatMessage = {
+ text: string;
+ type: "sent" | "received";
+};
 
 export default function ChatPage() {
  const [message, setMessage] = useState("");
- const [chat, setChat] = useState<string[]>([]);
+ const [chat, setChat] = useState<ChatMessage[]>([]);
+ const [isConnected, setIsConnected] = useState(socket.connected);
+ const [error, setError] = useState("");
+ const messagesEndRef = useRef<HTMLDivElement>(null);
 
  useEffect(() => {
-  socket.on("receiveMessage", (msg: string) => {
-   setChat((prev) => [...prev, msg]);
+  socket.on("connect", () => setIsConnected(true));
+  socket.on("disconnect", () => setIsConnected(false));
+  socket.on("receiveMessage", (msg) => {
+   setChat((prev) => [...prev, { text: msg, type: "received" }]);
   });
-
   return () => {
+   socket.off("connect");
+   socket.off("disconnect");
    socket.off("receiveMessage");
   };
  }, []);
 
- const sendMessage = async (e: React.FormEvent) => {
+ useEffect(() => {
+  messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+ }, [chat]);
+
+ const sendMessage = (e: React.FormEvent) => {
   e.preventDefault();
   if (!message.trim()) return;
-
-  // Send message to backend via REST API
-  await fetch("/api/reply", {
-   method: "POST",
-   headers: { "Content-Type": "application/json" },
-   body: JSON.stringify({ message }),
-  });
-
+  if (!isConnected) {
+   setError("Internet disconnected. Message not sent.");
+   return;
+  }
+  setChat((prev) => [...prev, { text: message, type: "sent" }]);
+  socket.emit("sendMessage", message);
   setMessage("");
+  setError("");
  };
 
  return (
-  <div
-   style={{
-    maxWidth: 400,
-    margin: "40px auto",
-    padding: 20,
-    border: "1px solid #ccc",
-    borderRadius: 8,
-   }}
-  >
-   <h2>Socket.IO Chat</h2>
-   <div
-    style={{
-     minHeight: 120,
-     marginBottom: 16,
-     background: "#f9f9f9",
-     padding: 10,
-     borderRadius: 4,
-    }}
-   >
-    {chat.map((msg, idx) => (
-     <div key={idx} style={{ marginBottom: 4 }}>
-      {msg}
-     </div>
-    ))}
+  <div className="max-w-2xl mx-auto mt-16 p-8 bg-white rounded-xl shadow-lg border border-gray-200">
+   {!isConnected && (
+    <div className="mb-2 text-red-600 font-semibold">
+     Not connected to server!
+    </div>
+   )}
+   {error && <div className="mb-2 text-red-500">{error}</div>}
+   <h2 className="text-2xl font-bold mb-6 text-center text-blue-600">
+    Socket.IO Chat
+   </h2>
+   <div className="h-96 overflow-y-auto mb-6 bg-gray-50 rounded-lg p-4 border border-gray-100 flex flex-col">
+    {chat.length === 0 ? (
+     <div className="text-gray-400 text-center mt-32">No messages yet.</div>
+    ) : (
+     chat.map((msg, idx) => (
+      <div
+       key={idx}
+       className={`mb-3 flex ${
+        msg.type === "sent" ? "justify-end" : "justify-start"
+       }`}
+      >
+       <div
+        className={`px-4 py-2 rounded-lg shadow-sm max-w-xl break-words
+                  ${
+                   msg.type === "sent"
+                    ? "bg-blue-600 text-white"
+                    : "bg-blue-100 text-blue-800"
+                  }`}
+       >
+        {msg.text}
+       </div>
+      </div>
+     ))
+    )}
+    <div ref={messagesEndRef} />
    </div>
-   <form onSubmit={sendMessage} style={{ display: "flex", gap: 8 }}>
+   <form onSubmit={sendMessage} className="flex gap-4">
     <input
      type="text"
      value={message}
      onChange={(e) => setMessage(e.target.value)}
      placeholder="Type your message..."
-     style={{ flex: 1, padding: 8 }}
+     className="flex-1 px-4 py-2 text-black/75 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
     />
-    <button type="submit" style={{ padding: "8px 16px" }}>
+    <button
+     type="submit"
+     className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
+    >
      Send
     </button>
    </form>
